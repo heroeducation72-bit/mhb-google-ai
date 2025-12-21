@@ -8,7 +8,10 @@ interface CreatorCardProps {
 
 export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
   const [isPlayingSound, setIsPlayingSound] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Fallback avatar
   const avatarUrl = creator.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.name)}&background=ff5f33&color=fff`;
@@ -26,10 +29,35 @@ export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
       if (isPlayingSound) {
         audioRef.current.pause();
       } else {
+        // Pause video if playing to avoid overlapping audio
+        if (isVideoPlaying && videoRef.current) {
+           videoRef.current.pause();
+           setIsVideoPlaying(false);
+        }
         audioRef.current.play();
       }
       setIsPlayingSound(!isPlayingSound);
     }
+  };
+
+  const toggleVideo = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!videoRef.current || !videoUrl) return;
+
+      if (isVideoPlaying) {
+          videoRef.current.pause();
+          setIsVideoPlaying(false);
+      } else {
+          // Pause voice sample if playing
+          if (isPlayingSound && audioRef.current) {
+              audioRef.current.pause();
+              setIsPlayingSound(false);
+          }
+          // Ensure video is unmuted when user explicitly clicks to play
+          videoRef.current.muted = false;
+          videoRef.current.play().catch(err => console.error("Video play failed", err));
+          setIsVideoPlaying(true);
+      }
   };
 
   return (
@@ -43,21 +71,20 @@ export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
         />
       )}
 
-      {/* Media Header */}
-      <div className="relative aspect-[9/16] bg-slate-950 overflow-hidden">
+      {/* Media Header - Clickable for Video Toggle */}
+      <div 
+        className="relative aspect-[9/16] bg-slate-950 overflow-hidden cursor-pointer"
+        onClick={toggleVideo}
+      >
         {videoUrl ? (
           <video 
+            ref={videoRef}
             src={videoUrl}
             poster={thumbnailPoster}
-            className={`w-full h-full object-cover transition-all duration-700 ${thumbnailPoster ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'} group-hover:scale-105`}
-            muted
+            className={`w-full h-full object-cover transition-all duration-700 ${thumbnailPoster ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'} ${isVideoPlaying ? 'scale-100' : 'group-hover:scale-105'}`}
             loop
             playsInline
-            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-            onMouseLeave={(e) => {
-              e.currentTarget.pause();
-              e.currentTarget.currentTime = 0;
-            }}
+            onEnded={() => setIsVideoPlaying(false)}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-500 gap-2">
@@ -68,20 +95,29 @@ export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
           </div>
         )}
         
-        {/* Overlay Gradient (slightly stronger if no poster to ensure text contrast) */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/90 pointer-events-none" />
+        {/* Overlay Gradient - Fades out when playing for better visibility */}
+        <div className={`absolute inset-0 bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/90 pointer-events-none transition-opacity duration-500 ${isVideoPlaying ? 'opacity-0' : 'opacity-100'}`} />
 
-        {/* Play Icon Hint (Video) - Only show if not playing sound */}
-        {!isPlayingSound && (
+        {/* Play Icon Hint (Video) - Shows when paused */}
+        {!isVideoPlaying && !isPlayingSound && videoUrl && (
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-full border border-white/20">
               <Play className="w-8 h-8 text-white fill-current" />
             </div>
           </div>
         )}
+        
+        {/* Pause Icon - Shows briefly on hover when playing */}
+        {isVideoPlaying && (
+             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                <div className="bg-black/30 backdrop-blur-md p-3 rounded-full border border-white/10">
+                  <Pause className="w-6 h-6 text-white fill-current" />
+                </div>
+             </div>
+        )}
 
         {/* Top Badges */}
-        <div className="absolute top-3 left-3 flex gap-2">
+        <div className="absolute top-3 left-3 flex gap-2 pointer-events-none">
           <span className="bg-slate-950/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-xs font-semibold text-white shadow-sm">
             {creator.niche}
           </span>
@@ -92,7 +128,7 @@ export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
           )}
         </div>
         
-        {/* Sound Toggle Button */}
+        {/* Sound Toggle Button (Voice Sample) */}
         {creator.voice_sample_url && (
           <button 
             onClick={toggleSound}
@@ -109,7 +145,7 @@ export const CreatorCard: React.FC<CreatorCardProps> = ({ creator }) => {
       </div>
 
       {/* Info Body */}
-      <div className="p-4 flex flex-col flex-grow relative bg-slate-900 -mt-6 rounded-t-2xl z-10 border-t border-white/5">
+      <div className="p-4 flex flex-col flex-grow relative bg-slate-900 -mt-6 rounded-t-2xl z-10 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-3">
              <img 
